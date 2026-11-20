@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Mic, Play, Square, Trophy, Clock, Sparkles,
   Volume2, ArrowRight, ShieldCheck, Zap,
@@ -10,7 +10,8 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
   const questions = incomingQuestions;
 
   const [index, setIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(20);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [timerActive, setTimerActive] = useState(false);
   const [scores, setScores] = useState([]);
   const [feedback, setFeedback] = useState("");
   const [status, setStatus] = useState("Ready to begin your viva");
@@ -20,12 +21,34 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
 
   const recognitionRef = useRef(null);
   const streamRef = useRef(null);
+  const questionSpeechIdRef = useRef(0);
 
   const speak = (message) => {
     window.speechSynthesis.cancel();
     const speech = new SpeechSynthesisUtterance(message);
     speech.rate = 0.95;
     speech.pitch = 0.9;
+    window.speechSynthesis.speak(speech);
+  };
+
+  const speakQuestion = (message) => {
+    const speechId = ++questionSpeechIdRef.current;
+    window.speechSynthesis.cancel();
+    setTimerActive(false);
+    setTimeLeft(60);
+
+    const speech = new SpeechSynthesisUtterance(message);
+    speech.rate = 0.95;
+    speech.pitch = 0.9;
+
+    const startAnswerTimer = () => {
+      if (speechId !== questionSpeechIdRef.current) return;
+      setStatus("Question finished. You have 60 seconds to answer.");
+      setTimerActive(true);
+    };
+
+    speech.onend = startAnswerTimer;
+    speech.onerror = startAnswerTimer;
     window.speechSynthesis.speak(speech);
   };
 
@@ -44,13 +67,14 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
       streamRef.current = stream;
 
       setIndex(0);
-      setTimeLeft(20);
+      setTimerActive(false);
+      setTimeLeft(60);
       setScores(Array(questions.length).fill(0));
       setFeedback("");
       setShowReport(false);
       setStarted(true);
       setStatus("Microphone connected. Examiner is ready.");
-      speak("Welcome to VivaMate AI. First question. " + questions[0]);
+      speakQuestion("Welcome to VivaMate AI. First question. " + questions[0]);
     } catch (error) {
       setStarted(false);
       setStatus(error.name === "NotAllowedError"
@@ -128,6 +152,8 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
   const nextQuestion = () => {
     if (recognitionRef.current) recognitionRef.current.stop();
     setRecording(false);
+    questionSpeechIdRef.current += 1;
+    setTimerActive(false);
     window.speechSynthesis.cancel();
 
     if (index === questions.length - 1) {
@@ -141,14 +167,14 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
 
     const next = index + 1;
     setIndex(next);
-    setTimeLeft(20);
+    setTimeLeft(60);
     setFeedback("");
     setStatus("Examiner is asking the next question.");
-    speak("Next question. " + questions[next]);
+    speakQuestion("Next question. " + questions[next]);
   };
 
   useEffect(() => {
-    if (!started || showReport) return;
+    if (!started || showReport || !timerActive) return;
 
     if (timeLeft <= 0) {
       nextQuestion();
@@ -160,9 +186,11 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [started, timeLeft, showReport]);
+  }, [started, timeLeft, showReport, timerActive]);
 
   const stopAll = () => {
+    questionSpeechIdRef.current += 1;
+    setTimerActive(false);
     window.speechSynthesis.cancel();
     stopMicrophone();
     setStarted(false);
@@ -269,7 +297,7 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
                   <div className="vv-question-icon"><CircleHelp size={20} /></div>
                   <div className="vv-section-label">EXAMINER'S QUESTION</div>
                   <h3>{questions[index]}</h3>
-                  <button className="vv-listen" onClick={() => speak(questions[index])}>
+                  <button className="vv-listen" onClick={() => speakQuestion(questions[index])}>
                     <Volume2 size={15} /> Listen again
                   </button>
                 </div>
@@ -278,7 +306,7 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
                   <div className={`vv-timer ${timeLeft <= 5 && started ? "vv-timer-warning" : ""}`}>
                     <div className="vv-timer-inner">
                       <Clock size={18} />
-                      <strong>{started ? timeLeft : "20"}</strong>
+                      <strong>{started ? timeLeft : "60"}</strong>
                       <small>SECONDS LEFT</small>
                     </div>
                   </div>
@@ -296,7 +324,7 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
                       <Play size={17} /> Start Viva
                     </button>
                   )}
-                  <button className="vv-btn vv-btn-primary" onClick={startRecording} disabled={!started || recording}>
+                  <button className="vv-btn vv-btn-primary" onClick={startRecording} disabled={!started || recording || !timerActive}>
                     <Mic size={17} /> Start Answer
                   </button>
                   <button className="vv-btn vv-btn-secondary" onClick={nextQuestion} disabled={!started}>
@@ -322,7 +350,7 @@ function VoiceViva({ questions: incomingQuestions = [], difficulty = "Basic" }) 
             <h3>Practice like a real viva.</h3>
             <p>Your examiner will ask questions aloud. Answer using your microphone before the timer ends.</p>
             <div className="vv-side-divider" />
-            <div className="vv-side-feature"><Clock size={17} /><span>20 seconds per question</span></div>
+            <div className="vv-side-feature"><Clock size={17} /><span>60 seconds per question</span></div>
             <div className="vv-side-feature"><Mic size={17} /><span>Voice-only interaction</span></div>
             <div className="vv-side-feature"><Trophy size={17} /><span>Instant demo scoring</span></div>
             <div className="vv-side-note">

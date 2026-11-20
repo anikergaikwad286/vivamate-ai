@@ -491,102 +491,98 @@ def extract_keywords(text):
     return keywords
 
 
+
 def generate_question_list(project_text, difficulty, count):
     text = clean_project_text(project_text)
-    sentences = extract_sentences(text)
     keywords = extract_keywords(text)
 
-    if not sentences and not keywords:
+    if not keywords:
         raise HTTPException(
             status_code=400,
             detail="Not enough readable project content to generate questions."
         )
 
-    if not sentences:
-        sentences = [
-            " ".join(keywords[i:i + 8])
-            for i in range(0, len(keywords), 8)
-            if keywords[i:i + 8]
-        ]
-
-    if not keywords:
-        keywords = [
-            word for sentence in sentences
-            for word in sentence.split()
-        ]
-
     templates = {
         "Basic": [
-            "Explain the following concept from your project: {sentence}",
-            "What is the meaning of this statement in your project: {sentence}?",
-            "Describe the role of {keyword} in your project.",
-            "Why is {keyword} important in this project?",
-            "What do you understand by {keyword}?"
+            "What is {keyword}?",
+            "Why is {keyword} important?",
+            "How does {keyword} work?",
+            "What is the role of {keyword}?",
+            "Where is {keyword} used?",
+            "Give one example of {keyword}.",
+            "What problem does {keyword} solve?",
+            "What are the benefits of {keyword}?",
+            "What are the main parts of {keyword}?",
+            "How is {keyword} used here?",
+            "What happens if {keyword} fails?",
+            "How would you explain {keyword}?"
         ],
         "Intermediate": [
-            "How does the concept described here work in your project: {sentence}?",
-            "Why is the following concept necessary: {sentence}?",
-            "How is {keyword} used in your project?",
-            "Explain the relationship between {keyword} and the overall project.",
-            "What would happen if {keyword} did not work correctly?"
+            "How does {keyword} work in this project?",
+            "Why did you choose {keyword}?",
+            "How would you test {keyword}?",
+            "What happens if {keyword} fails?",
+            "How does {keyword} connect to the system?",
+            "How can you improve {keyword}?",
+            "What are the main steps in {keyword}?",
+            "How can you optimize {keyword}?",
+            "How do you verify {keyword}?",
+            "What limits the use of {keyword}?",
+            "How does {keyword} support this project?",
+            "How would you troubleshoot {keyword}?"
         ],
         "Advanced": [
-            "What technical challenges could arise from this project concept: {sentence}?",
-            "How would you improve the implementation described here: {sentence}?",
-            "What are the limitations of using {keyword} in this project?",
-            "How would you test the reliability of {keyword}?",
-            "What alternative could replace {keyword}, and why?"
+            "What are the limitations of {keyword}?",
+            "How would you redesign {keyword}?",
+            "Which alternative to {keyword} would you choose?",
+            "How would you measure {keyword}'s performance?",
+            "What risks are linked to {keyword}?",
+            "How would you scale {keyword}?",
+            "How would you secure {keyword}?",
+            "What trade-offs does {keyword} introduce?",
+            "How could {keyword} fail under heavy load?",
+            "How would you make {keyword} more reliable?",
+            "How would you compare alternatives to {keyword}?",
+            "How would you validate {keyword} in production?"
         ]
     }
 
-    selected_templates = templates[difficulty]
+    extra_templates = [
+        "Can {keyword} be replaced? Why?",
+        "How do you maintain {keyword}?",
+        "What tools support {keyword}?",
+        "How does {keyword} affect performance?",
+        "What data does {keyword} need?",
+        "What output does {keyword} produce?",
+        "How do you monitor {keyword}?",
+        "What is one weakness of {keyword}?",
+        "What is one strength of {keyword}?",
+        "How does {keyword} handle errors?",
+        "How could you simplify {keyword}?",
+        "Who benefits from {keyword}?",
+        "What happens when {keyword} is unavailable?",
+        "How does {keyword} protect data?",
+        "How would you document {keyword}?",
+        "How do you demonstrate {keyword}?",
+        "What would you change in {keyword}?",
+        "Why is {keyword} suitable here?"
+    ]
+
+    all_templates = templates[difficulty] + extra_templates
     questions = []
     seen = set()
 
-    for i in range(count * 5):
-        sentence = sentences[i % len(sentences)]
+    for i in range(min(count, len(all_templates))):
         keyword = keywords[i % len(keywords)]
-        template = selected_templates[i % len(selected_templates)]
-
-        question = template.format(
-            sentence=sentence[:180],
-            keyword=keyword
-        ).strip()
+        match = re.search(re.escape(keyword), text, re.IGNORECASE)
+        display_keyword = match.group(0) if match else keyword
+        question = all_templates[i].format(keyword=display_keyword).strip()
 
         if question.lower() not in seen:
             seen.add(question.lower())
             questions.append(question)
-
-        if len(questions) == count:
-            break
-
-    extra_templates = [
-        "Explain how {keyword} contributes to the main objective of your project.",
-        "What is the importance of {keyword} in the working of your project?",
-        "How can you verify that {keyword} is working correctly?",
-        "What could be the effect of changing {keyword} in your project?",
-        "Describe one practical application of {keyword} in your project."
-    ]
-
-    extra_index = 0
-
-    while len(questions) < count:
-        keyword = keywords[extra_index % len(keywords)]
-        template = extra_templates[
-            extra_index % len(extra_templates)
-        ]
-
-        question = template.format(keyword=keyword)
-
-        if question.lower() not in seen:
-            seen.add(question.lower())
-            questions.append(question)
-
-        extra_index += 1
 
     return questions[:count]
-
-
 @app.post("/generate-questions")
 def generate_questions(request: QuestionRequest):
     if not request.project_text.strip():
