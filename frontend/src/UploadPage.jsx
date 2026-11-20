@@ -1,4 +1,4 @@
-﻿
+
 import { useState } from "react";
 import "./UploadPage.css";
 
@@ -37,7 +37,7 @@ function UploadPage({ onQuestionsGenerated }) {
       setMessage("");
       setQuestions([]);
 
-      const response = await fetch("http://127.0.0.1:8000/upload", {
+      const response = await fetch("https://vivamate-ai-9el4.onrender.com/upload", {
         method: "POST",
         body: formData,
       });
@@ -77,7 +77,7 @@ function UploadPage({ onQuestionsGenerated }) {
       setQuestions([]);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/generate-questions",
+        "https://vivamate-ai-9el4.onrender.com/generate-questions",
         {
           method: "POST",
           headers: {
